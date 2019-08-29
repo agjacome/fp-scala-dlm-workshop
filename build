@@ -23,7 +23,7 @@ function generate_html_slides() {
 function main() {
     ensure_pandoc
 
-    find . -type f -name "*.md" | while read filename; do
+    find . -mindepth 2 -type f -name "*.md" | while read filename; do
         echo -n "${filename}... "
         generate_html_slides $filename
         echo "✓"
