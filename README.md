@@ -1,13 +1,15 @@
 Functional Programming in Scala
 ===============================
 
+### Build
+
 Requirements:
 
  * **pandoc**: https://pandoc.org/installing.html
  * **sass**: https://sass-lang.com/install
- * optional **watchexec**: https://github.com/watchexec/watchexec
+ * **watchexec**: https://github.com/watchexec/watchexec
 
-Build:
+Build slides:
 
 ```
 $ make all

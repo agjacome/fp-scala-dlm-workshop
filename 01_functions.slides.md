@@ -25,7 +25,7 @@ increment(10) // res: Int = 11
 
 ### First class functions
 
-We can do with functions everything we can do with other values
+Functions can be used as any other type of value
 
 ```scala
 val increment:  Int => Int = number => number + 1
@@ -73,13 +73,13 @@ Because functions are values, they can be passed as arguments to other
 functions or methods
 
 ```scala
-def ifNonBlank(s: String, f: String => String):  String =
-  if (s.isBlank) s else f(s)
+def ifBannedWord(s: String, f: String => String): String =
+  if (s == "mutability") f(s) else s
 
-val spacesToDots: String => String = s => s.replaceAll(" ", ".")
+val charsToStars: String => String = s => s.replaceAll(".", "*")
 
-ifNonBlank("lorem ipsum", spacesToDots) // res = "lorem.ipsum"
-ifNonBlank("   "        , spacesToDots) // res = "   "
+ifBannedWord("mutability" , charsToStars) // res = "**********"
+ifBannedWord("lorem ipsum", charsToStars) // res = "lorem ipsum"
 ```
 
 ---
@@ -125,7 +125,7 @@ add(5)(2) // 7
 ### Curried functions
 
 Multi-argument functions can be encoded as a chain of single-argument
-functions. This is called Currying
+functions. This is called Currying*
 
 ```scala
 val add: (Int, Int) => Int = (x, y) => x + y
@@ -164,14 +164,14 @@ Curried functions and multiple lists of arguments are widely used in Scala as
 syntactic sugar for giving a function the appearance of a native DSL
 
 ```scala
-def ifNonBlank(s: String)(f: String => String):  String =
-  if (s.isBlank) s else f(s)
+def ifBannedWord(s: String)(f: String => String): String =
+  if (s == "mutability") f(s) else s
 
-ifNonBlank("lorem ipsum")(s => s.replaceAll(" ", "."))
+ifBannedWord("mutability")(s => s.relaceAll(".", "*"))
 
 // curly braces syntax makes it look like a native construct
-ifNonBlank("lorem ipsum") {
-  s => s.replaceAll(" ", ".")
+ifBannedWord("lorem ipsum") {
+  s => s.replaceAll(".", "*")
 }
 ```
 
@@ -257,8 +257,10 @@ function is evaluated. This is more formally called **call-by-value**
 
 ```scala
 def f(argument: Int): Int = argument + 1
+```
 
-// Transformations applied
+```scala
+// Transformations applied, left to right
 f(3 + 5) --> f(8) --> { 8 + 1 }
 ```
 
@@ -271,8 +273,10 @@ evaluated up until the point of usage
 
 ```scala
 def f(argument: => Int): Int = argument + 1
+```
 
-// Transformations applied
+```scala
+// Transformations applied, left to right
 f(3 + 5) --> { (3 + 5) + 1 }
 ```
 
@@ -287,9 +291,11 @@ they are not used inside the method
 
 ```scala
 def f(argument: Int): Int = 42
-f(3 + 5) --> f(8) --> { 42 }
-
 def g(argument: => Int): Int = 42
+```
+
+```scala
+f(3 + 5) --> f(8) --> { 42 }
 g(3 + 5) --> { 42 }
 ```
 
@@ -304,9 +310,13 @@ equivalent
 
 ```scala
 def f(argument: => Int): Int = argument + 1
-f(3 + 5)
 
+f(3 + 5)
+```
+
+```scala
 def g(argument: () => Int): Int = argument() + 1
+
 f(() => 3 + 5)
 ```
 
@@ -319,7 +329,9 @@ time they are used in the method body
 
 ```scala
 def f(argument: => Int): Int = argument + argument + 1
+```
 
+```scala
 // Transformations
 f(3 + 5) --> { (3 + 5) + (3 + 5) + 1 }
 ```
@@ -328,13 +340,15 @@ f(3 + 5) --> { (3 + 5) + (3 + 5) + 1 }
 
 ### Function execution models
 
-A mechanism, not available natively in Scala, called **call-by-need** would
+A mechanism, **not available natively in Scala**, called **call-by-need** would
 prevent that behaviour, making the argument be evaluated only once upon the
 first usage, so hypothetically it would look like:
 
 ```scala
 def f(argument: => Int): Int = argument + argument + 1
+```
 
+```scala
 // Transformations
 f(3 + 5) --> { (3 + 5) + argument + 1 }
          --> { 8 + argument + 1 }
@@ -353,7 +367,9 @@ def f(argument: => Int): Int = {
   lazy val byNeedArgument = argument
   byNeedArgument + byNeedArgument + 1
 }
+```
 
+```scala
 // Transformations
 f(3 + 5) --> { byNeedArgument + byNeedArgument + 1 }
          --> { (3 + 5)  + byNeedArgument + 1 }
@@ -540,13 +556,13 @@ Requisites to treat a programming function as pure:
 
 ### Referential transparency
 
-An expression is *referentially transparent* if it can be replaced with its
+* An expression is *referentially transparent* if it can be replaced with its
 corresponding result value without changing the program's behaviour
 
-Pure functions are referentially transparent, allowing for a great deal of code
+* Pure functions are referentially transparent, allowing for a great deal of code
 reuse, performance optimisation, understanding and control of a program
 
-Impure functions are not referentially transparent. They cannot be replaced
+* Impure functions are not referentially transparent. They cannot be replaced
 with a value
 
 ---
@@ -697,14 +713,10 @@ def greetings(name: String): String = {
   val currentTime = java.time.LocalDateTime.now()
   val currentHour = currentTime.getHour
 
-  if (currentHour < 4  && currentHour < 13)
-    s"Good morning, ${name}"
-  else if (currentHour > 12 && currentHour < 17)
-    s"Good afternoon, ${name}"
-  else if (currentHour > 16 && currentHour < 20)
-    s"Good evening, ${name}"
-  else
-    s"Good night, ${name}"
+  if      (currentHour > 4  && currentHour < 13) s"Good morning, ${name}"
+  else if (currentHour > 12 && currentHour < 17) s"Good afternoon, ${name}"
+  else if (currentHour > 16 && currentHour < 20) s"Good evening, ${name}"
+  else                                           s"Good night, ${name}"
 }
 ```
 
@@ -714,29 +726,15 @@ def greetings(name: String): String = {
 
 Easier testing
 
-If the function was pure, concerned only with its domain logic, it would become
-very easy to test
+If the function was pure, it would become very easy to test
 
 ```scala
 def greetings(currentHour: Int, name: String): String =
-  if (currentHour < 4  && currentHour < 13)
-    s"Good morning, ${name}"
-  else if (currentHour > 12 && currentHour < 17)
-    s"Good afternoon, ${name}"
-  else if (currentHour > 16 && currentHour < 20)
-    s"Good evening, ${name}"
-  else
-    s"Good night, ${name}"
+  if      (currentHour > 4  && currentHour < 13) s"Good morning, ${name}"
+  else if (currentHour > 12 && currentHour < 17) s"Good afternoon, ${name}"
+  else if (currentHour > 16 && currentHour < 20) s"Good evening, ${name}"
+  else                                           s"Good night, ${name}"
 ```
-
----
-
-### Referential transparency
-
-Easier testing
-
-If the function was pure, concerned only with its domain logic, it would become
-very easy to test
 
 ```scala
 assert(greetings(7 , "Alonzo") == "Good morning, Alonzo")
