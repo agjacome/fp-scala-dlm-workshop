@@ -10,7 +10,7 @@ styles: $(scss:.scss=.css)
 	@pandoc -t revealjs \
 			--standalone \
 			--highlight=zenburn \
-			--slide-level=2 \
+			--slide-level=3 \
 			--include-in-header=resources/html/revealjs-header.html \
 			--variable=revealjs-url:resources/js/reveal.js \
 			--variable=theme:solarized \
@@ -33,4 +33,4 @@ clean:
 	@rm -f $(md:.md=.html) $(scss:.scss=.css)
 
 watch:
-	@watchexec --exts md,js,scss,html make
+	watchexec --exts md,js,scss,html make

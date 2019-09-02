@@ -564,14 +564,6 @@ val y = increment(2)
 val z = x + y
 ```
 
----
-
-### Referential transparency
-
-Referential transparency enables *equational reasoning*. This kind of reasoning
-is the one used in high-school equations, based in the simple substitution
-model of variables and values.
-
 ```scala
 val x = 2
 val y = 3
@@ -579,25 +571,9 @@ val y = 3
 val z = x + y
 ```
 
----
-
-### Referential transparency
-
-Referential transparency enables *equational reasoning*. This kind of reasoning
-is the one used in high-school equations, based in the simple substitution
-model of variables and values.
-
 ```scala
 val z = 2 + 3
 ```
-
----
-
-### Referential transparency
-
-Referential transparency enables *equational reasoning*. This kind of reasoning
-is the one used in high-school equations, based in the simple substitution
-model of variables and values.
 
 ```scala
 val z = 5
