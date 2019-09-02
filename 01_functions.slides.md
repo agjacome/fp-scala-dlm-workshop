@@ -143,6 +143,27 @@ add(5)(2) // 7
 
 ### Curried functions
 
+The `=>` symbol to declare function types in Scala *associates to the right*,
+so the following type signatures are exactly the same:
+
+```scala
+// F1 is the same as F2
+type F1 = Int => (Int => Int)
+type F2 = Int => Int => Int
+```
+
+```scala
+// G1 is the same as G2
+type G1 = Int => (Double => (String => UUID))
+type G2 = Int => Double => String => UUID
+```
+
+<small>The `type` keyword is used in Scala to declare type aliases</small>
+
+---
+
+### Curried functions
+
 Scala has a syntax for multiple lists of arguments, providing a currying
 look-alike behaviour for methods
 
