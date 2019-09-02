@@ -1,1 +1,3 @@
 *.html
+!resources/**/*.html
+resources/css/*.css

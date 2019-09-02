@@ -1,14 +1,14 @@
 Functional Programming in Scala
 ===============================
 
-To build the HTML version of the slides (`pandoc` must be available in the 
-system), run:
+Requirements:
 
-```bash
-./build
+ * **pandoc**: https://pandoc.org/installing.html
+ * **sass**: https://sass-lang.com/install
+ * optional **watchexec**: https://github.com/watchexec/watchexec
+
+Build:
+
 ```
-
-HTML versions of the slides will be placed alongside the original markdown
-files. For example, the HTML slides of the session `01_functions` will be
-generated in file `01_functions/slides.html`.
-
+$ make all
+```

@@ -21,6 +21,8 @@ val increment: Int => Int = (number) => number + 1
 increment(10) // res: Int = 11
 ```
 
+---
+
 ### First class functions
 
 We can do with functions everything we can do with other values
@@ -378,7 +380,7 @@ Pure functions are functions which hold three specific properties:
 Pure functions, as mathematical functions, are just a transformation from an
 input to an output
 
-![](images/01_functions.pure_function.01.png)
+![](resources/images/01_functions.pure_function.01.png)
 
 ---
 
@@ -412,7 +414,7 @@ tenDividedBy(0)  // java.lang.ArithmeticException: / by zero
 
 Partial functions: not all the inputs produce an output
 
-![](images/01_functions.pure_function.02.png)
+![](resources/images/01_functions.pure_function.02.png)
 
 ---
 
@@ -436,7 +438,7 @@ lengthOf(null) // java.lang.NullPointerException
 
 `Null` is a non-escapable case of partiality in Scala
 
-![](images/01_functions.pure_function.03.png)
+![](resources/images/01_functions.pure_function.03.png)
 
 ---
 
@@ -468,7 +470,7 @@ secondsAfterNow(1) // res: Instant = 2019-08-26T12:15:42.501Z
 Nondeterministic functions: the same input does not always produce the same
 output
 
-![](images/01_functions.pure_function.04.png)
+![](resources/images/01_functions.pure_function.04.png)
 
 ---
 
@@ -520,7 +522,7 @@ totalIncrementCalls // res: Int = 2
 Effectful functions: not only a transformation from input to output, they
 perform som extra side effect
 
-![](images/01_functions.pure_function.05.png)
+![](resources/images/01_functions.pure_function.05.png)
 
 ---
 
