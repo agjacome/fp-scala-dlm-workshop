@@ -1,1 +1,12 @@
-<link rel="stylesheet" href="resources/css/theme.css">
+<link rel="stylesheet" type="text/css" href="resources/css/theme.css">
+<script type="text/javascript">
+    if (window.location.search.match(/print-pdf/gi)) {
+        var link = document.createElement('link');
+
+        link.rel  = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'resources/js/reveal.js/css/print/pdf.css';
+
+        document.getElementsByTagName('head')[0].appendChild(link);
+    }
+</script>
