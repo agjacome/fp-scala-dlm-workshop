@@ -1,4 +1,4 @@
-md   := $(filter-out README.md, $(wildcard *.md))
+md   := $(filter-out README.md, $(wildcard **/*.md))
 scss := $(wildcard resources/css/*.scss)
 
 all: slides styles
@@ -12,7 +12,7 @@ styles: $(scss:.scss=.css)
 			--highlight=zenburn \
 			--slide-level=3 \
 			--include-in-header=resources/html/revealjs-header.html \
-			--variable=revealjs-url:resources/js/reveal.js \
+			--variable=revealjs-url:/resources/js/reveal.js \
 			--variable=theme:solarized \
 			--variable=controls:false \
 			--variable=history:true \
