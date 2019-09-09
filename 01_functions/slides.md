@@ -28,18 +28,18 @@ increment(10) // res: Int = 11
 Functions can be used as any other type of value
 
 ```scala
-val increment:  Int => Int = number => number + 1
-val decrement:  Int => Int = number => number - 1
-val duplicate:  Int => Int = number => number * 2
+val increment: Int => Int = number => number + 1
+val decrement: Int => Int = number => number - 1
+val doubleIt:  Int => Int = number => number * 2
 
 val listOfFunctions: List[Int => Int] = List(
-  increment, decrement, duplicate
+  increment, decrement, doubleIt
 )
 
 val mapOfFunctions: Map[String, Int => Int] = Map(
   "++" -> increment,
   "--" -> decrement,
-  "*2" -> duplicate,
+  "*2" -> doubleIt,
 )
 ```
 
@@ -324,7 +324,7 @@ g(3 + 5) --> { 42 }
 
 ### Function execution models
 
-Call by need can be *emulated* by passing a 0-arity method as argument
+Call by name can be *emulated* by passing a 0-arity method as argument
 
 The following method signatures are syntactically different but semantically
 equivalent
