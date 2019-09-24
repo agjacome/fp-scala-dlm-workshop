@@ -1,16 +1,26 @@
 .reveal {
 
-  section {
+    section {
 
-    pre {
-        box-shadow: 0 0 0;
+        code {
+            margin: 0 12px;
+            letter-spacing: -4px;
+        }
+
+        pre {
+            box-shadow: 0 0 0;
+
+            code {
+                margin: 0;
+                letter-spacing: normal;
+            }
+        }
+
+        img {
+            border: 0;
+            box-shadow: 0 0 0;
+        }
+
     }
-
-    img {
-      border: 0;
-      box-shadow: 0 0 0;
-    }
-
-  }
 
 }
