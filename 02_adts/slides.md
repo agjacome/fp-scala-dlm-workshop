@@ -1313,6 +1313,7 @@ appropriate value
 
 ```scala
 import java.net.URI
+import scala.util.Try
 
 def safeParseUri(uri: String): Try[URI] =
   Try(new URI(uri))
@@ -1425,12 +1426,14 @@ The same previous test, writen in a **property-based testing** fashion:
 class DivideTest extends PropSpec with GeneratorDrivenPropertyChecks {
 
   property("dividing by zero returns None") {
-    assert(divideTenBy(0) == None)    
+    divideTenBy(0) == None
   }
 
   property("dividing by non-zero number returns Some") {
     forAll { (number: Int) =>
-      whenever(number != 0) { assert(divideTenBy(number) == Some(10 / number)) }
+      whenever(number != 0) {
+        divideTenBy(number) == Some(10 / number)
+      }
     }
   }
 
