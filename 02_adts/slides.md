@@ -531,6 +531,22 @@ parseAsJson("""gArb@ge""")              // OK, returns Left[ErrorType] value
 
 ---
 
+### Sum types
+
+* Given sets `A = { a, b }` and set `B = { 0, 1 }`
+
+  * Then `A ⋃ B = { a, b, 0, 1 }`
+
+  * And `|A ⋃ B| = |A| + |B| = 2 + 2 = 4`
+
+* Similary, given `Boolean = { true, false }` and `Bit = { 0, 1 }`
+
+  * Then `Boolean | Bit = { true, false, 0, 1 }`
+
+  * And `|Boolean | Bit| = |Boolean| + |Bit| = 2 + 2 = 4`
+
+---
+
 ### Option
 
 Option is the other canonical sum type in Scala, it can be *either* `Some` or
@@ -579,9 +595,9 @@ divide(10)(5) // OK, returns Some[Float] value
 divide(10)(0) // OK, returns None value
 ```
 <small>
-* Which in other languages or scenarios would be solved with "null"
-- [Null references: the billion dollar mistake](https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/)
-- [Null vs pure reason](https://apocalisp.wordpress.com/2008/05/03/null-vs-pure-reason/)
+* Which in other languages or scenarios would be solved with "null"  
+[Null references: the billion dollar mistake](https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/)  
+[Null vs pure reason](https://apocalisp.wordpress.com/2008/05/03/null-vs-pure-reason/)
 </small>
 
 ---
@@ -1051,7 +1067,7 @@ def days(m: Month): Int =
   }
 ```
 
-The only way to make the compiler check for exhaustiveness in Scala 2.x is with
+The only way to make the compiler check for exhaustiveness in Scala 2 is with
 `sealed`
 
 ---
@@ -1061,14 +1077,13 @@ The only way to make the compiler check for exhaustiveness in Scala 2.x is with
 One of the end goals of ADTs is to **reduce the solution space**
 
 ```scala
-def countryToCurrency(country: String): String = {
+def countryToCurrency(country: String): String =
   country match {
     case "Germany" | "Spain" | "France" => "Euro"
     case "United Kingdom"               => "British Pound"
     case "United States"                => "US Dollar"
     case _                              => "Unknown"
   }
-}
 ```
 
 * What is the cardinality of this function?
@@ -1123,7 +1138,7 @@ object Currency {
 * What about just the output?
 
   ```scala
-  def countryToCurrencty(country: String): Option[Currency]
+  def countryToCurrency(country: String): Option[Currency]
   ```
 
 * What about both input and output at the same time?
@@ -1143,13 +1158,12 @@ object Currency {
 * Properly typed implementation:
 
   ```scala
-  def countryToCurrenct(country: Country): Currency = {
+  def countryToCurrency(country: Country): Currency =
     country match {
       case France | Germany | Spain => Euro
       case UnitedKingdom            => BritishPound
       case UnitedStates             => USDollar
     }
-  }
   ```
 
 * Nothing of this is new nor FP-related (see [Value
@@ -1265,6 +1279,187 @@ The corollaries here would be:
 
 ---
 
-### Testing
+### The Try datatype
 
-...
+* Scala std library has a sum type called `Try`
+
+* Try has two data constructors: `Success` and `Failure`
+
+* `Try[A]` is isomorphic to `Either[Throwable, A]`
+
+  * `Success[A] = Right[A]`
+
+  * `Failure = Left[Throwable]`
+
+---
+
+### The Try datatype
+
+The main purpose of Try is to purify exception-throwing functions (e.g. from
+Java libraries)
+
+```scala
+import java.net.URI
+
+def unsafeParseUri(uri: String): URI =
+  new URI(uri)
+
+unsafeParseUri("http://thoughtworks.com") // OK, returns an URI
+unsafeParseUri("http://")                 // KO, throws URISyntaxException
+```
+
+The constructor `Try` handles the exception like a try-catch and returns the
+appropriate value
+
+```scala
+import java.net.URI
+
+def safeParseUri(uri: String): Try[URI] =
+  Try(new URI(uri))
+
+safeParseUri("http://thoughtworks.com") // OK, returns Success[URI]
+safeParseUri("http://")                 // OK, returns Failure
+```
+
+---
+
+### The Try datatype
+
+The biggest rule of thumb about `Try`: use it **only for handling exceptions**,
+and convert it immediately to an `Either` or an `Option`; don't expose `Try` in
+public signatures
+
+```scala
+def safeParseUri(uri: String): Option[URI] =
+  Try(new URI(uri)).toOption
+```
+
+```scala
+def safeParseUri(uri: String): Either[Throwable, URI] =
+  Try(new URI(uri)).toEither
+```
+
+Matching on `Throwable` is always non-exhaustive and thus not typesafe
+
+---
+
+### About testing
+
+Suppose the following function
+
+```scala
+def divideTenBy(x: Int): Option[Int] =
+  if (x != 0) Some(10 / x) else None
+```
+
+_Obviously_ testing 2^32 possibilities is not viable
+
+The common classical solution is to test with range values, like (using
+ScalaTest):
+
+```scala
+class DivideTest extends FunSuite {
+
+  test("dividing by -100") { assert(divideTenBy(-100) == Some( 0)) }
+  test("dividing by  -10") { assert(divideTenBy( -10) == Some(-1)) }
+  test("dividing by   -2") { assert(divideTenBy(  -2) == Some(-5)) }
+  test("dividing by    0") { assert(divideTenBy(   0) == None    ) }
+  test("dividing by    2") { assert(divideTenBy(   2) == Some( 5)) }
+  test("dividing by   10") { assert(divideTenBy(  10) == Some( 1)) }
+  test("dividing by  100") { assert(divideTenBy( 100) == Some( 0)) }
+
+}
+```
+
+---
+
+### Parameterized tests
+
+A way to avoid the previous `assert` repetition is to use **parameterized** tets:
+
+```scala
+class DivideTest extends FunSuite with TableDrivenPropertyChecks {
+
+  private val values = Table(
+    "input" -> "output",
+    -2      -> Some(-5),
+     0      -> None    ,
+     2      -> Some(5),
+     // more input -> output pairs here...
+  )
+
+  forAll(values) { (input, output) =>
+    test(s"dividing by ${input}") { assert(dividTenBy(input) == output) }
+  }
+}
+```
+
+Extending the test scenarios then would be just a matter of adding them to the
+`Table`
+
+---
+
+### Property-based testing
+
+* In FP, the most common way to write this kind of tests is to just define
+  which **properties** the function must hold
+
+* With those properties, the test scenarios can be auto-generated
+
+* There are multiple tools to do this in Scala, the most used one is
+  [ScalaCheck](https://www.scalacheck.org/), but there is also
+  [ScalaProps](https://github.com/scalaprops/scalaprops), [Scala
+  Hedgehog](https://github.com/hedgehogqa/scala-hedgehog) and a miriad more*
+
+  <small>* All of them copies from Haskell's
+  [QuickCheck](https://en.wikipedia.org/wiki/QuickCheck) and
+  [Hedgehog](https://hackage.haskell.org/package/hedgehog)</small>
+
+---
+
+### Property-based testing
+
+The same previous test, writen in a **property-based testing** fashion:
+
+```scala
+class DivideTest extends PropSpec with GeneratorDrivenPropertyChecks {
+
+  property("dividing by zero returns None") {
+    assert(divideTenBy(0) == None)    
+  }
+
+  property("dividing by non-zero number returns Some") {
+    forAll { (number: Int) =>
+      whenever(number != 0) { assert(divideTenBy(number) == Some(10 / number)) }
+    }
+  }
+
+}
+```
+
+---
+
+### Property-based testing
+
+* The `forAll` expression of the previous example (ScalaTest + ScalaCheck)
+  automatically generates `Int` values that get supplied to the test
+
+* Range values are generated automatically, plus some more random ones
+
+* Shrinking to the minimum failure scenario is performed automatically
+
+* Not `2^32` scenarios are going to be generated in each run, but a very big
+  number of them will, and without having to write them manually
+
+* Together with a proper solution space restriction, property-based tests can
+  make your life easier in terms of verification
+
+---
+
+### Algebraic Data Types
+
+Algebraic data types together with first class functions are the basic building
+blocks of modern typed functional programming
+
+Lots of impure functions can become pure, self-documenting and unambiguous with
+their help
