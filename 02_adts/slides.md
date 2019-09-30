@@ -805,7 +805,7 @@ possible sum type value, just for the sum type itself
 
 * The total `Shape` cardinality then is a bit more complicated than just `2`:
 
-  `|Shape| = |Cirlce| + |Rectangle| = (|Int|) + (|Int| * |Int|) = 2^32 + 2^64`
+  `|Shape| = |Circle| + |Rectangle| = (|Int|) + (|Int| * |Int|) = 2^32 + 2^64`
 
 * If the data constructor classes are not marked `final`, problems may arise
 
@@ -873,7 +873,7 @@ final case class Rectangle(width: Int, height: Int) extends Shape
 def computeArea(shape: Shape): Int =
   shape match {
     case Circle(r)       => Math.PI * r * r
-    case Rectangle(w, h) => w * l
+    case Rectangle(w, h) => w * h
   }
 ```
 
