@@ -286,7 +286,6 @@ def isEven(num: Int): Boolean
 ```
 
 > **Theorem**:
->
 > The isEven function returns either True or False
 
 ---
@@ -455,164 +454,229 @@ possibility in the _general case_. However:
 
 ---
 
-### Type boundaries
-
-Scala allows to set some boundaries in polymorphic types. Consider the
-following definitions:
-
-```scala
-sealed trait MediaticAnimal { def name: String }
-
-final case class Pigeon (name: String) extends MediaticAnimal
-final case class Cricket(name: String) extends MediaticAnimal
-final case class Human  (name: String) extends MediaticAnimal
-```
-
----
-
 ### Upper type bounds
 
-The generic type of a function can be restricted to subtypes of another one by
-using the `<:` operator in the generic type declaration
+`<:` declares an **upper type bound**
+
+`A <: B` means "any generic type A which is a subtype of type B or A itself"
 
 ```scala
-def doSomething[A <: MediaticAnimal](animal: A): Int = 42
+def example[A <: java.time.Temporal](time: A): A
 
-doSomething(Human("A Bird Watcher")) // compiles correctly
-
-doSomething(123) // does not compile, Int does not extend MediaticAnimal
-```
-
-`<:` declares an **uper type bound**
-
----
-
-### Upper type bounds
-
-Moreover, since the generic now has a bound, the compiler knows that all the
-methods present in the supertype are also available in the generic type
-
-```scala
-def greet[A <: MediaticAnimal](animal: A): String =
-  s"Hello ${animal.name}!!"
-    
-greet(Human("A Bird Watcher")) // "Hello A Bird Watcher!!"
+example(Instant.now())       // compiles
+example(LocalDateTime.now()) // compiles
+example("12:34:00")          // does not compile
 ```
 
 ---
 
 ### Lower type bounds
 
-On the other hand, and being a bit less useful outside variance problems, a
-generic type can also be restricted to supertypes of another one by using the
-`>:` operator in the generic type declaration
+`>:` declares a **lower type bound**:
+
+`A >: B` means "any generic type A which is a supertype of type B or type A
+itself"
 
 ```scala
-def doSomething[A >: Human](animal: A): Int = 42
+def example[A >: java.time.Instant](instant: A): A
 
-doSomething(Human(...))   // compiles
-
-doSomething(Cricket(...)) // does not compile
+example(Instant.now())                  // compiles
+example(new java.time.Temporal { ... }) // compiles
+example(LocalDateTime.now())            // does not compile
 ```
-
-`>:` declares a **lower type bound**
 
 ---
 
 ### Type variance
 
-As Scala type system has support for subtyping (`A extends B`), some weird
-situations can occurr in conjunction with parametric polymorphism
+Consider the following definitions:
+
+![](/resources/images/03_parametricity.variance_01.png)
 
 ```scala
-final case class Elevator[A](contents: List[A])
+final class VendingMachine[A]
 
-def isEmpty(elevator: Elevator[MediaticAnimal]): Boolean =
-  box.contents.isEmpty
-
-val e1: Elevator[Human]   = Elevator(List(Human(...), Human(...)))
-val e2: Elevator[Cricket] = Elevator(List.empty)
-
-isEmpty(e1) // does not compile
-isEmpty(e2) // does not compile
+def install(softDrinkVendingMachine: VendingMachine[SoftDrink]): VendingMachine[SoftDrink]
 ```
 
 ---
 
-### Invariant types
+### Invariance
 
-* The previous example fails because `Elevator` is defined as invariant in its
-  type argument `A`
+This VendingMachine, though, is invariant, which means that the following cases
+will not work:
 
-* This implies that `Elevator[Human]` is not a subtype of
-  `Elevator[MediaticAnimal]` and thus cannot be passed as argument to the
-  `isEmpty` function
+```scala
+val colaVendingMachine: VendingMachine[Cola] = new VendingMachine[Cola]
+val tonicWaterVendingMachine: VendingMachine[TonicWater] = new VendingMachine[TonicWater]
 
-* Invariance is good in scenarios where subtyping is forbidden, but not for
-  most common object-oriented scenarios
+install(colaVendingMachine)       // does not compile
+install(tonicWaterVendingMachine) // does not compile
+```
+
+Invariance implies that `VendingMachine[Cola]` is not a subtype of
+`VendingMachine[SoftDrink]`, so wherever the second one is expected, then the
+first one cannot be used
 
 ---
 
 ### Covariance
 
-Given a `class T[A]`, we say that **T is covariant in its type A** if given two
-types such that `A extends B`, then `T[A] extends T[B]`
-
-The way to make generic types covariant in scala is to use the `+` operator in
-the generic type definition
+If we make VendingMachine covariant (by using the `+` operator):
 
 ```scala
-class Foo[A]  // invariant in A
-class Foo[+A] // covariant in A
+final class VendingMachine[+A]
+
+def install(softDrinkVendingMachine: VendingMachine[SoftDrink]): VendingMachine[SoftDrink]
+
+val colaVendingMachine: VendingMachine[Cola] = new VendingMachine[Cola]
+val tonicWaterVendingMachine: VendingMachine[TonicWater] = new VendingMachine[TonicWater]
+
+install(colaVendingMachine)       // compiles!!
+install(tonicWaterVendingMachine) // compiles!!
 ```
 
 ---
 
 ### Covariance
 
+Covariant subtyping provides the generic class `class Foo[+A]` subtyping
+information with respect to the generic type `A`:
+
 ```scala
-final case class Elevator[+A](contents: List[A])
+AType <: AnotherType => Foo[AType] <: Foo[AnotherType]
+```
 
-def isEmpty(elevator: Elevator[MediaticAnimal]): Boolean =
-  box.contents.isEmpty
+---
 
-val e1: Elevator[Human]   = Elevator(List(Human(...), Human(...)))
-val e2: Elevator[Cricket] = Elevator(List.empty)
+### Legal covariant positions
 
-isEmpty(e1) // compiles!!
-isEmpty(e2) // compiles!!
+* In some languages instead of using the randomly-chosen `+` operator, they use
+  a `out` keyword to define covariant type parameters.
+
+* This is because contravariant type parameters can only occurr in "output"
+  types from methods/functions
+
+  ```scala
+  final class VendingMachine[+A] {
+
+    def foo: A          // LEGAL POSITION
+
+    def bar(a: A): Unit // ILLEGAL POSITION, WON'T COMPILE
+
+  }
+  ```
+
+---
+
+### Legal covariant positions
+
+To overcome this restriction, upper type bounds tend to be used together with
+covariant types when an "input" possition is necessary:
+
+```scala
+final class VendingMachine[+A] {
+
+  def bar[B >: A](b: B): Unit // THIS COMPILES!!
+
+}
 ```
 
 ---
 
 ### Contravariance
 
-Given a `class T[A]`, we say that **T is contravariant in its type A** if given
-two types such that `B extends A`, then `T[A] extends T[B]`
+Consider now the following example:
 
-The way to make generic types contravariant in scala is to use the `-` operator
-in the generic type definition
+![](/resources/images/03_parametricity.variance_02.png)
 
 ```scala
-class Foo[A]  // invariant in A
-class Foo[+A] // covariant in A
-class Foo[-A] // contravariant in A
+final class GarbageCan[A]
+
+def setGarbageCanForPlastic(can: GarbageCan[PlasticItem]): Unit
 ```
 
 ---
 
 ### Contravariance
 
-TODO EXAMPLE
+Intuitivelly, a GarbageCan for Items can be set up as a GarbageCan for Plastic
+too, but:
+
+```scala
+val garbageCanForItems: GarbageCan[Item] = new GarbageCan[Item]
+
+setGarbageCanForPlastic(garbageCanForItems) // does not compile!!
+```
 
 ---
 
-### 
+### Contravariance
 
-In the general case, **contravariant** types are used for **input**, while
-**covariant** types are used for **output**.
+In order to make this work as expected, we need to make the generic type `A`
+contravariant with the `-` operator:
 
-That's why Scala's function type definition is something like this:
+```scala
+final class GarbageCan[-A]
+
+def setGarbageCanForPlastic(can: GarbageCan[PlasticItem]): Unit
+
+val garbageCanForItems: GarbageCan[Item] = new GarbageCan[Item]
+
+setGarbageCanForPlastic(garbageCanForItems) // it does compile now!!
+```
+
+---
+
+### Contravariant
+
+Contravariant subtyping provides the generic class `class Foo[-A]` subtyping
+information with respect to the generic type `A`:
+
+```scala
+AType >: AnotherType => Foo[AType] <: Foo[AnotherType]
+```
+
+---
+
+### Legal contravariant positions
+
+* In some languages instead of using the randomly-chosen `-` operator, they use
+  a `in` keyword to define contravariant type parameters.
+
+* This is because contravariant type parameters can only occurr in "input"
+  types from methods/functions
+
+  ```scala
+  final class GarbageCan[-A] {
+
+    def foo(a: A): Unit // LEGAL POSITION, compiles
+
+    def bar: A          // ILLEGAL POSITION, does not compile
+
+  }
+  ```
+
+---
+
+### Legal contravariant positions
+
+To overcome this restriction, upper type bounds tend to be used together with
+contravariant types when an "input" possition is necessary:
+
+```scala
+final class GarbageCan[-A] {
+
+  def bar[B <: A]: B // THIS COMPILES!!
+
+}
+```
+
+---
+
+### Scala's Function Type
+
+Scala's function types are defined somewhat like this:
 
 ```scala
 trait Function[-Input, +Output] {
@@ -622,9 +686,84 @@ trait Function[-Input, +Output] {
 }
 ```
 
+Contravariant in the input, and covariant in the output
+
 ---
 
-### TODO
+### Higher Kinded Types
 
-- Higher kinded types
-- Links to further reading: existential types, dependent types
+One of the most powerful features of the Scala type system is its ability to
+abstract over things that take type parameters. This feature is known as HKTs
+(Higher Kinded Types)
+
+Essentially, HKTs provide the ability to generalizae accross generic type
+constructor. For example, `List[_]` is not a type, but a generic type
+constructor, so if you pass it a `String` you get a `List[String]` type, and if
+you pass it an `Int` you get a `List[Int]` type
+
+---
+
+### Kinds
+
+Kinds are a way to classify generic type constructors by the amount of generic
+type parameters that they take
+
+* `List` has kind `(* -> *)`, because it takes one type parameter to return
+  another type (given `String` it produces `List[String]`)
+
+* `Map` has kind `(* -> * -> *)`, because it takes two type parameters to
+  return a complete type. (given only `String` it will return `Map[String, _]`
+  and given `String` and `Int` it will return `Map[String, Int]`)
+
+* And so on...
+
+---
+
+### Kinds
+
+The power of Scala type system lies on the capability of use those **kinds** as
+type parameters:
+
+```scala
+trait Foo[T[_]]       // T is a (* -> *) kind
+trait Bar[T[_, _]]    // T is a (* -> * -> *) kind
+
+new Foo[List] { ... } // OK
+new Foo[Map] { ... }  // KO
+
+new Bar[List] { ... } // KO
+new Bar[Map]  { ... } // OK
+```
+
+---
+
+### Kinds
+
+```scala
+trait MappableThing[F[_]] { def map[A, B](fa: F[A], mapper: A => B): F[B] }
+
+object ListMappableThing extends MappableThing[List] {
+  def map[A, B](fa: List[A], mapper: A => B): List[B] = fa.map(mapper)
+}
+```
+
+```scala
+def doSomething[F[_]](mappable: MappableThing[F], something: F[Int]): F[String] =
+  mappable.map(something, num => num.toString)
+
+doSomething(ListMappableThing, List(1, 2, 3)) // OK, returns List("1", "2", "3")
+```
+
+---
+
+### Higher Kinds and Parametricity
+
+Higher kinded types extend a bit the theorems derived from parametricity. In
+the previous definition, for example, `doSomething` won't be able to create a
+new `F` out of thin air, so the only possible implementation is that it calls
+the `map` method in the `mappable` argument
+
+```scala
+def doSomething[F[_]](mappable: MappableThing[F], something: F[Int]): F[String] =
+  mappable.map(something, num => num.toString)
+```
