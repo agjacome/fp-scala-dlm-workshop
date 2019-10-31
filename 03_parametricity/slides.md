@@ -187,6 +187,10 @@ Let's try it:
 def irrelevant[A](as: List[A]): List[A]
 ```
 
+```haskell
+[a] -> [a]
+```
+
 * We can assert a lot of things about how this function works
 
 * We can, more importantly, assert what the function **does not** do
@@ -214,6 +218,10 @@ Can you think of some theorem satisfied by the following definition?
 def irrelevant[A, B](a: A): B
 ```
 
+```haskell
+irrelevant :: a -> b
+```
+
 ---
 
 ### Parametricity: Exhibit Two
@@ -226,6 +234,34 @@ def irrelevant[A, B](a: A): B
 >
 > This function **never** returns because if it did, it would never have
 > compiled
+
+---
+
+### Parametricity: Exhibit Three
+
+Can you think of some theorem satisfied by the following definition?
+
+```scala
+def irrelevant[A](something: Option[A]): List[A]
+```
+
+```haskell
+irrelevant :: Maybe a -> [a]
+```
+
+---
+
+### Parametricity: Exhibit Three
+
+```scala
+def irrelevant[A](something: Option[A]): List[A]
+```
+
+> **Theorems:**
+>
+> * All the values in the returned list are the same
+> * The `A` value in the returned list is the one in Some
+> * If the argument is None, then an empty list is returned
 
 ---
 
@@ -402,8 +438,6 @@ We know that all the elements of the output appear on the input, but:
 
 * How do we rule all possible implementations but one?
 
-* How do we specifically determine what the function does?
-
 ---
 
 ### The Limits of Parametricity
@@ -417,13 +451,180 @@ possibility in the _general case_. However:
 
 * **Types are proof-positive**
 
-* **Tests are failed-proof negative**
+* **Tests are proof-negative**
+
+---
+
+### Type boundaries
+
+Scala allows to set some boundaries in polymorphic types. Consider the
+following definitions:
+
+```scala
+sealed trait MediaticAnimal { def name: String }
+
+final case class Pigeon (name: String) extends MediaticAnimal
+final case class Cricket(name: String) extends MediaticAnimal
+final case class Human  (name: String) extends MediaticAnimal
+```
+
+---
+
+### Upper type bounds
+
+The generic type of a function can be restricted to subtypes of another one by
+using the `<:` operator in the generic type declaration
+
+```scala
+def doSomething[A <: MediaticAnimal](animal: A): Int = 42
+
+doSomething(Human("A Bird Watcher")) // compiles correctly
+
+doSomething(123) // does not compile, Int does not extend MediaticAnimal
+```
+
+`<:` declares an **uper type bound**
+
+---
+
+### Upper type bounds
+
+Moreover, since the generic now has a bound, the compiler knows that all the
+methods present in the supertype are also available in the generic type
+
+```scala
+def greet[A <: MediaticAnimal](animal: A): String =
+  s"Hello ${animal.name}!!"
+    
+greet(Human("A Bird Watcher")) // "Hello A Bird Watcher!!"
+```
+
+---
+
+### Lower type bounds
+
+On the other hand, and being a bit less useful outside variance problems, a
+generic type can also be restricted to supertypes of another one by using the
+`>:` operator in the generic type declaration
+
+```scala
+def doSomething[A >: Human](animal: A): Int = 42
+
+doSomething(Human(...))   // compiles
+
+doSomething(Cricket(...)) // does not compile
+```
+
+`>:` declares a **lower type bound**
+
+---
+
+### Type variance
+
+As Scala type system has support for subtyping (`A extends B`), some weird
+situations can occurr in conjunction with parametric polymorphism
+
+```scala
+final case class Elevator[A](contents: List[A])
+
+def isEmpty(elevator: Elevator[MediaticAnimal]): Boolean =
+  box.contents.isEmpty
+
+val e1: Elevator[Human]   = Elevator(List(Human(...), Human(...)))
+val e2: Elevator[Cricket] = Elevator(List.empty)
+
+isEmpty(e1) // does not compile
+isEmpty(e2) // does not compile
+```
+
+---
+
+### Invariant types
+
+* The previous example fails because `Elevator` is defined as invariant in its
+  type argument `A`
+
+* This implies that `Elevator[Human]` is not a subtype of
+  `Elevator[MediaticAnimal]` and thus cannot be passed as argument to the
+  `isEmpty` function
+
+* Invariance is good in scenarios where subtyping is forbidden, but not for
+  most common object-oriented scenarios
+
+---
+
+### Covariance
+
+Given a `class T[A]`, we say that **T is covariant in its type A** if given two
+types such that `A extends B`, then `T[A] extends T[B]`
+
+The way to make generic types covariant in scala is to use the `+` operator in
+the generic type definition
+
+```scala
+class Foo[A]  // invariant in A
+class Foo[+A] // covariant in A
+```
+
+---
+
+### Covariance
+
+```scala
+final case class Elevator[+A](contents: List[A])
+
+def isEmpty(elevator: Elevator[MediaticAnimal]): Boolean =
+  box.contents.isEmpty
+
+val e1: Elevator[Human]   = Elevator(List(Human(...), Human(...)))
+val e2: Elevator[Cricket] = Elevator(List.empty)
+
+isEmpty(e1) // compiles!!
+isEmpty(e2) // compiles!!
+```
+
+---
+
+### Contravariance
+
+Given a `class T[A]`, we say that **T is contravariant in its type A** if given
+two types such that `B extends A`, then `T[A] extends T[B]`
+
+The way to make generic types contravariant in scala is to use the `-` operator
+in the generic type definition
+
+```scala
+class Foo[A]  // invariant in A
+class Foo[+A] // covariant in A
+class Foo[-A] // contravariant in A
+```
+
+---
+
+### Contravariance
+
+TODO EXAMPLE
+
+---
+
+### 
+
+In the general case, **contravariant** types are used for **input**, while
+**covariant** types are used for **output**.
+
+That's why Scala's function type definition is something like this:
+
+```scala
+trait Function[-Input, +Output] {
+
+  def apply(input: Input): Output
+
+}
+```
 
 ---
 
 ### TODO
 
-- Variance
-- Existential types
-- Dependent types
 - Higher kinded types
+- Links to further reading: existential types, dependent types
