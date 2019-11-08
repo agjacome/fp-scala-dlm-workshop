@@ -543,9 +543,9 @@ install(tonicWaterVendingMachine) // compiles!!
 Covariant subtyping provides the generic class `class Foo[+A]` subtyping
 information with respect to the generic type `A`:
 
-```scala
-AType <: AnotherType => Foo[AType] <: Foo[AnotherType]
-```
+* Given `Foo[+A]`
+* When `AType` extends `AnotherType`
+* Then `Foo[AType]` also extends `Foo[AnotherType]`
 
 ---
 
@@ -633,9 +633,9 @@ setGarbageCanForPlastic(garbageCanForItems) // it does compile now!!
 Contravariant subtyping provides the generic class `class Foo[-A]` subtyping
 information with respect to the generic type `A`:
 
-```scala
-AType >: AnotherType => Foo[AType] <: Foo[AnotherType]
-```
+* Given `Foo[-A]`
+* When `AType` is a supertype of `AnotherType`
+* Then `Foo[AType]` extends `Foo[AnotherType]`
 
 ---
 
@@ -690,80 +690,253 @@ Contravariant in the input, and covariant in the output
 
 ---
 
-### Higher Kinded Types
+### Type holes
 
-One of the most powerful features of the Scala type system is its ability to
-abstract over things that take type parameters. This feature is known as HKTs
-(Higher Kinded Types)
+We could classify types by the number of "holes" that they have:
 
-Essentially, HKTs provide the ability to generalizae accross generic type
-constructor. For example, `List[_]` is not a type, but a generic type
-constructor, so if you pass it a `String` you get a `List[String]` type, and if
-you pass it an `Int` you get a `List[Int]` type
+* No type holes: `Int`, `String`, `UUID`, ...
 
----
+* One type hole: `List[A]`, `Set[A]`, `Option[A]`, `Try[A]`, ...
 
-### Kinds
-
-Kinds are a way to classify generic type constructors by the amount of generic
-type parameters that they take
-
-* `List` has kind `(* -> *)`, because it takes one type parameter to return
-  another type (given `String` it produces `List[String]`)
-
-* `Map` has kind `(* -> * -> *)`, because it takes two type parameters to
-  return a complete type. (given only `String` it will return `Map[String, _]`
-  and given `String` and `Int` it will return `Map[String, Int]`)
-
-* And so on...
+* Two type holes: `Map[A, B]`, `A => B`
 
 ---
 
 ### Kinds
 
-The power of Scala type system lies on the capability of use those **kinds** as
-type parameters:
+Kinds are exactly that, but in a more "formal" way:
+
+* Kind `*`: `Int`, `String`, `UUID`, ...
+
+  * So `*` means that there are no type holes
+
+* Kind `* => *`: `List[A]`, `Set[A]`, `Option[A]`, `Try[A]`, ...
+
+  * So `* => *` means that there is one type hole
+
+* Kind `* => * => *`: `Map[A, B]`, `A => B`
+
+  * So `* => * => *` means that there are two type holes
+
+---
+
+### Kinds as type-level functions
+
+Consider this example, a very basic ADT:
 
 ```scala
-trait Foo[T[_]]       // T is a (* -> *) kind
-trait Bar[T[_, _]]    // T is a (* -> * -> *) kind
+sealed trait Boolean
 
-new Foo[List] { ... } // OK
-new Foo[Map] { ... }  // KO
+case object True  extends Boolean
+case object False extends Boolean
+```
 
-new Bar[List] { ... } // KO
-new Bar[Map]  { ... } // OK
+```haskell
+data Boolean = True | False
+```
+
+We say that `Boolean` is a type constructor and `True` and `False` the data
+constructors of the `Boolean` type
+
+---
+
+### Kinds as type-level functions
+
+The term "type constructor" is not coincidental, as `Boolean` does not return a
+value, but a type
+
+  ```scala
+  val test = Boolean  // Illegal
+
+  type test = Boolean // OK!
+  ```
+
+So, `Boolean` itself can be seen as a 0-arity type-level function.
+
+This concept is expressed by its kind `*` (read it as `() => *`)
+
+---
+
+### Kinds as type-level functions
+
+Now, consider Scala's `Option` ADT:
+
+```scala
+sealed trait Option[+A]
+
+case class  Some[+A](value: A) extends Option[A]
+case object None               extends Option[Nothing]
+```
+
+```haskell
+-- Option in Haskell is called Maybe
+data Maybe a = Just a | Empty
+```
+
+Again, `Option` is a type constructor, but both `Some` and `None` would be data
+constructors
+
+---
+
+### Kinds as type-level functions
+
+The same kind of reasoning applies:
+
+```scala
+val maybeWhat = Option      // Illegal
+val maybeInt  = Option[Int] // Illegal
+
+type maybeWhat = Option      // Illegal
+type maybeInt  = Option[Int] // OK!
+```
+
+`Option` itself can be seen as a 1-arity type-level function. If we provide it
+a complete type (like `Int` in the example), it will return another type
+
+This concept is expressed by its kind `* => *`
+
+---
+
+### Types of a higher kind
+
+* The most common generic type systems (Java, Kotlin, C#, TypeScript, etc) only
+  have support for types of kind `*`
+
+* Scala parametric type system, on the other hand, has support for **kinds
+  higher than `*`**
+
+* This feature is commonly known as HKTs (Higher Kinded Types), and is one of
+  the most powerful features of Scala
+
+---
+
+### Types of a higher kind
+
+```scala
+class Foo[A]
+```
+
+`Foo` is a generic class over a type `A`
+
+This type `A` needs to always have kind `*`
+
+```scala
+new Foo[Int]    // OK!
+new Foo[String] // OK!
+
+new Foo[List]   // KO!
+new Foo[Option] // KO!
 ```
 
 ---
 
-### Kinds
+### Types of a higher kind
+
+In Scala, though, we can make the generic type to have a **higher kind**:
 
 ```scala
-trait MappableThing[F[_]] { def map[A, B](fa: F[A], mapper: A => B): F[B] }
+class Bar[T[_]]
+```
 
-object ListMappableThing extends MappableThing[List] {
-  def map[A, B](fa: List[A], mapper: A => B): List[B] = fa.map(mapper)
+Now, this `Bar` is generic over a type `T` of kind `* => *`
+
+```scala
+new Bar[List]   // OK!
+new Bar[Option] // OK!
+
+new Bar[Int]    // KO!
+new Bar[String] // KO!
+```
+
+---
+
+### Types of a higher kind
+
+And as expected, it can be made generic over kinds with multiple holes:
+
+```scala
+class Baz[T[_, _, _, _, _]]
+```
+
+Now, `Baz` is generic over a type `T` with 5 holes
+
+`T` has kind `* => * => * => * => * => *`
+
+<small>This smells like a big over-abstraction, don't do it at work</small>
+
+---
+
+### Types of a higher kind
+
+Consider these definitions:
+
+```scala
+trait Combinable[T[_]] {
+  def combine[A](t1: T[A], t2: T[A]): T[A]
+}
+
+object ListCombinable extends Combinable[List] {
+  def combine[A](l1: List[A], l2: List[A]): List[A] = l1 ++ l2
+}
+
+object SetCombinable extends Combinable[Set] {
+  def combine[A](s1: Set[A], s2: Set[A]): Set[A] = s1.union(s2)
 }
 ```
 
-```scala
-def doSomething[F[_]](mappable: MappableThing[F], something: F[Int]): F[String] =
-  mappable.map(something, num => num.toString)
+<small>Combinable is named in FP circles as
+[Semigroup](https://typelevel.org/cats/typeclasses/semigroup.html), in
+reference to the [mathematical algebraic
+structure](https://en.wikipedia.org/wiki/Semigroup)</small>
 
-doSomething(ListMappableThing, List(1, 2, 3)) // OK, returns List("1", "2", "3")
+---
+
+### Types of a higher kind
+
+Now, abstracting over combinable things we could have the following:
+
+```scala
+def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[F]): T[Int] =
+  combiner.combine(fst, snd)
+
+val listOne = List(1, 2, 3)
+val listTwo = List(2, 3, 4)
+combineInts(listOne, listTwo, ListCombinable)
+
+val setOne = Set(1, 2, 3)
+val setTwo = Set(2, 3, 4)
+combineInts(setOne, setTwo, SetCombinable)
 ```
 
 ---
 
 ### Higher Kinds and Parametricity
 
-Higher kinded types extend a bit the theorems derived from parametricity. In
-the previous definition, for example, `doSomething` won't be able to create a
-new `F` out of thin air, so the only possible implementation is that it calls
-the `map` method in the `mappable` argument
+In the previous definition, `combineInts` won't be able to create a new `T`,
+so there are only six possible implementations:
 
 ```scala
-def doSomething[F[_]](mappable: MappableThing[F], something: F[Int]): F[String] =
-  mappable.map(something, num => num.toString)
+def combineInts[F[_]](fst: T[Int], snd: T[Int], combiner: Combinable[F]): T[Int] =
+// 1: fst
+// 2: snd
+// 3: combiner.combine(fst, fst)
+// 4: combiner.combine(fst, snd)
+// 5: combiner.combine(snd, snd)
+// 6: combiner.combine(snd, fst)
 ```
+
+Using `List` instead of `T` would make the solution space infinite
+
+<small>[Rúnar Bjarnason - Constraints liberate, liberties constrain
+(2015)](https://www.youtube.com/watch?v=GqmsQeSzMdw)</small>
+
+---
+
+### Parametric Polymorphism
+
+Parametric (aka generic) types not only provide a way to avoid code
+duplication, but also enable a reasoning method based upon parametricity
+
+Higher kinded type systems provide a way to abstract over type constructors.
+The more advanced FP concepts not only build upon this capability, but actually
+require its existence
