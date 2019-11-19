@@ -896,7 +896,7 @@ structure](https://en.wikipedia.org/wiki/Semigroup)</small>
 Now, abstracting over combinable things we could have the following:
 
 ```scala
-def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[F]): T[Int] =
+def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[T]): T[Int] =
   combiner.combine(fst, snd)
 
 val listOne = List(1, 2, 3)
@@ -916,7 +916,7 @@ In the previous definition, `combineInts` won't be able to create a new `T`,
 so there are only six possible implementations:
 
 ```scala
-def combineInts[F[_]](fst: T[Int], snd: T[Int], combiner: Combinable[F]): T[Int] =
+def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[T]): T[Int] =
 // 1: fst
 // 2: snd
 // 3: combiner.combine(fst, fst)

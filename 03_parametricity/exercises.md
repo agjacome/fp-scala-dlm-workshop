@@ -63,3 +63,47 @@ class Something f where
 
 baz :: Something f => (a -> b) -> (f a -> f b)
 ```
+
+---
+
+### Exercise 5
+
+Consider the following definitions:
+
+```scala
+sealed trait Mammal
+
+final case class Zebra(name: String) extends Mammal
+final case class Giraffe(name: String) extends Mammal
+```
+
+And the following (valid!) Java snippet:
+
+```java
+Zebra[] zebras = new Zebra[]{ new Zebra("a zebra") }; // array with 1 zebra
+Mammals[] mammals = zebras;
+mammals[0] = new Giraffe("a giraffe");
+Zebra zebra = zebras[0];
+```
+
+What is the problem with the snippet? What could be causing it to compile?
+
+---
+
+### Exercise 6
+
+Consider the `Option` type definition in Scala:
+
+```scala
+sealed trait Option[+A]
+
+final case class Some[+A](value: A) extends Option[A]
+case object None extends Option[Nothing]
+```
+
+What are the benefits and inconvenients that the covariant `A` creates?
+
+Try to create an invariant `Option` type that behaves the same way as the
+covariant one
+
+---
