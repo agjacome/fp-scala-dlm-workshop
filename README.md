@@ -1,4 +1,4 @@
-Functional Programming in Scala
+FP in Scala - DLM Team Workshop
 ===============================
 
 ### Build
@@ -7,7 +7,7 @@ Requirements:
 
  * **pandoc**: https://pandoc.org/installing.html
  * **sass**: https://sass-lang.com/install
- * **watchexec**: https://github.com/watchexec/watchexec
+ * (optional) **watchexec**: https://github.com/watchexec/watchexec
 
 Build slides:
 
