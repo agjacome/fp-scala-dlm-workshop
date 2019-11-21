@@ -913,7 +913,8 @@ combineInts(setOne, setTwo, SetCombinable)
 ### Higher Kinds and Parametricity
 
 In the previous definition, `combineInts` won't be able to create a new `T`,
-so there are only six possible implementations:
+so there are a limited amount of possible implementations (discarding infinite
+recursive calls):
 
 ```scala
 def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[T]): T[Int] =
@@ -923,6 +924,7 @@ def combineInts[T[_]](fst: T[Int], snd: T[Int], combiner: Combinable[T]): T[Int]
 // 4: combiner.combine(fst, snd)
 // 5: combiner.combine(snd, snd)
 // 6: combiner.combine(snd, fst)
+// ...
 ```
 
 Using `List` instead of `T` would make the solution space infinite
