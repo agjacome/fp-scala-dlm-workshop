@@ -683,3 +683,641 @@ def run[A](trampoline: Trampoline[A]): A = {
   C#)
 
 ---
+
+### Abstracting over recursion
+
+Let's go back to our previous definition of `sum` for lists:
+
+```scala
+def sum(list: List[Int]): Int = {
+  def iterate(current: List[Int], accumulator: Int): Int = {
+    current match {
+      case Cons(head, tail) => iterate(tail, accumulator + head)
+      case Nil              => accumulator
+    }
+
+  iterate(list, 0)
+}
+```
+
+This function is totally correct, but there is an opportunity for abstraction
+here...
+
+---
+
+### Abstracting over recursion
+
+Take for example the following functions:
+
+```scala
+def multiply(list: List[Int]): Double = {
+  def iterate(current: List[Int], accumulator: Double): Double = {
+    current match {
+      case Cons(head, tail) => iterate(tail, accumulator * head)
+      case Nil              => accumulator
+    }
+
+  iterate(list, 1.0)
+}
+```
+
+---
+
+### Abstracting over recursion
+
+Take for example the following functions:
+
+```scala
+def countWords(list: List[String]): Int = {
+  def iterate(current: List[String], accumulator: Int): Int = {
+    current match {
+      case Cons(head, tail) => iterate(tail, accumulator + head.split(" ").length)
+      case Nil              => accumulator
+    }
+
+  iterate(list, 0)
+}
+```
+
+---
+
+### Abstracting over recursion
+
+Take for example the following functions:
+
+```scala
+def length[A](list: List[A]): Int = {
+  def iterate(current: List[A], accumulator: Int): Int = {
+    current match {
+      case Cons(head, tail) => iterate(tail, accumulator + 1)
+      case Nil              => accumulator
+    }
+
+  iterate(list, 0)
+}
+```
+
+---
+
+### Abstracting over recursion
+
+All of them (and more) apply the same recursion pattern:
+
+* Start with an identity value (0, 1, etc) as the accumulator
+
+* For each Cons, apply an aggregation between the head and the current
+  accumulator, and recur with the updated accumulator value
+
+* Once a Nil is reached, return the value of the accumulator
+
+---
+
+### List folds
+
+We can abstract this scheme into a generic function (usually called **fold**)
+that can serve as a building block for all of them:
+
+```scala
+sealed trait List[+A] {
+
+  def fold[B](zero: B, operation: (B, A) => B): B = {
+    def iterate(current: List[A], accumulator: B): B = {
+      current match {
+        case Cons(head, tail) => iterate(tail, operation(accumulator, head))
+        case Nil              => accumulator
+      }
+
+    iterate(this, zero)
+  }
+
+}
+```
+
+---
+
+### List folds
+
+With our fold function in place, our previous recursion-based definitions can
+be replaced with a call to this higher-order function:
+
+```scala
+def sum(list: List[Int]): Int =
+  list.fold(0, (acc, value) => acc + value)
+
+def multiply(list: List[Int]): Double =
+  list.fold(1.0, (acc, value) => acc * value)
+
+def countWords(list: List[String]): Int =
+  list.fold(0, (acc, sentence) => acc + sentence.split(" ").length)
+
+def length[A](list: List[A]): Int =
+  list.fold(0, (acc, _) => acc + 1)
+```
+
+Folding provides a way to _summarize_ the values of a recursive ADT by
+abstracting over a recursion pattern
+
+---
+
+### Folding direction
+
+Consider now the two following possible alternative implementations of our fold
+function:
+ 
+```scala
+sealed trait List[+A] {
+
+  def foldLeft[B](zero: => B, operation: (B, A) => B): B =
+    this match {
+      case Cons(head, tail) => tail.foldleft(operation(zero, head), operation)
+      case Nil              => zero
+    }
+
+  def foldRight[B](zero: => B, operation: (A, B) => B): B =
+    this match {
+      case Cons(head, tail) => operation(tail.foldRight(zero, operation), head)
+      case Nil              => zero
+    }
+
+}
+```
+
+<small>Ignore the stack safety problems of these examples, they are naive
+versions of the functions, not production-ready ones</small>
+
+---
+
+### Folding direction
+
+In most scenarios both implementations will return the same value:
+
+```scala
+val aList = Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+
+aList.foldLeft(0, _ + _)  // ((((0 + 1) + 2) + 3) + 4) = 10
+aList.foldRight(0, _ + _) // ((((0 + 4) + 3) + 2) + 1) = 10
+```
+
+However, the "direction" of the recursion is inverted in each implementation.
+It's easier to see it if we **fold a list into another list**:
+
+```scala
+val aList = Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+
+aList.foldLeft(Nil, (acc, value) => Cons(value, acc))
+//  Cons(4, Cons(3, Cons(2, Cons(1, Nil))))
+
+aList.foldRight(Nil, (value, acc) => Cons(value, acc))
+//  Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+```
+
+Folding left reverses the list, while right preserves the same order!
+
+---
+
+### Folding direction
+
+Let's try to "paint" the folding operations to see why this happens:
+
+```scala
+foldLeft:
+
+Cons(1, Cons(2, Cons(3, Cons(4, Nil)))).foldLeft(zero, operation)
+Cons(2, Cons(3, Cons(4, Nil))).foldLeft(operation(zero, 1), operation)
+Cons(3, Cons(4, Nil)).foldLeft(operation(operation(zero, 1), 2), operation)
+Cons(4, Nil).foldLeft(operation(operation(operation(zero, 1), 2), 3), operation)
+Nil.foldLeft(operation(operation(operation(operation(zero, 1), 2), 3), 4), operation)
+
+operation(operation(operation(operation(zero, 1), 2), 3), 4)
+```
+
+```scala
+    Cons                        oper 
+    /  \                        /  \ 
+   1  Cons                    oper  4
+      /  \                    /  \ 
+     2  Cons       =>       oper  3
+        /  \                /  \ 
+       3  Cons            oper  2  
+          /  \            /  \
+         4   Nil        zero  1
+```
+
+---
+
+### Folding direction
+
+Let's try to "paint" the folding operations to see why this happens:
+
+```scala
+foldRight:
+
+Cons(1, Cons(2, Cons(3, Cons(4, Nil)))).foldRight(zero, operation)
+operation(1, Cons(2, Cons(3, Cons(4, Nil))).foldRight(zero, operation))
+operation(1, operation(2, Cons(3, Cons(4, Nil)).foldRight(zero, operation)))
+operation(1, operation(2, operation(3, Cons(4, Nil).foldRight(zero, operation))))
+operation(1, operation(2, operation(4, operation(Nil.foldRight(zero, operation)))))
+
+operation(1, operation(2, operation(3, operation(4, zero))))
+```
+
+```scala
+    Cons                 oper         
+    /  \                 /  \         
+   1  Cons              1  oper       
+      /  \                 /  \       
+     2  Cons       =>     2  oper     
+        /  \                 /  \     
+       3  Cons              3   oper   
+          /  \                  /  \   
+         4   Nil               4   zero 
+```
+
+---
+
+### Folding direction
+
+**foldLeft** (left-associative) applies the operation in a **outside-in** style:
+
+```scala
+val aList = Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+
+aList.foldLeft(0, (x, y) => add(x, y)) == add(add(add(add(0, 1), 2), 3), 4)
+
+aList.foldLeft(Nil, (x, y) => Cons(y, x)) == Cons(4, Cons(3, Cons(2, Cons(1, Nil))))
+```
+
+**foldRight** (right-associative) applies the operation in a **inside-out** style:
+
+```scala
+val aList = Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+
+aList.foldRight(0, (x, y) => add(x, y)) == add(add(add(add(0, 4), 3), 2), 1)
+
+aList.foldRight(Nil, (x, y) => Cons(x, y)) ==  Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+```
+
+---
+
+### foldRight
+
+Folding right has an interesting property, it (intuitively) replaces the Data
+Constructors of a List: Nil gets replaced with `zero`, and Cons gets replaced
+with `operation`
+ 
+```scala
+def mult(x: Int, y: Int): Int = y * x
+
+val list = Cons(1, Cons(2, Cons(3, Nil)))
+
+// Nil ⇒ 1, Cons ⇒ mult    Cons(1, Cons(2, Cons(3, Nil)))
+list.foldRight(1, mult) == mult(1, mult(2, mult(3,   1)))
+```
+
+<small>Another very important property of foldRight is that it can
+theoretically work with infinite structures, while foldLeft not  
+(but the Scala standard library has a ~~bug~~ feature which does not permit
+it in any case)</small>
+
+---
+
+### Binary trees
+
+Trees are another of the canonical recursive structures in programming. We can
+define binary trees with a recursive ADT as following:
+
+```scala
+sealed trait Tree[+A]
+
+case class  Node[+A](value: A, left: Tree[A], right: Tree[A]) extends Tree[A]
+case object Empty extends Tree[Nothing]
+
+def Leaf[A](value: A): Tree[A] = Node(value, Empty, Empty)
+```
+
+And can be instantiated like this:
+
+```scala
+val aTree: Tree[Int] = Node(3, Node(2, Leaf(1), Empty), Node(5, Leaf(4), Leaf(6)))
+
+//     3
+//    / \
+//   2   5
+//  /   / \
+// 1   4   6
+```
+
+---
+
+### Binary trees
+
+Same as with Lists, the "natural" way to iterate over a recursive BinaryTree
+is to use recursion
+
+```scala
+// not tail-recursive, not optimized
+def sum(tree: Tree[Int]): Int =
+  tree match {
+    case Node(value, left, right) => sum(left) + value + sum(right)
+    case Empty                    => 0
+  }
+
+val aTree: Tree[Int] = Node(4, Node(2, Leaf(1), Empty), Node(5, Leaf(3), Leaf(6)))
+
+sum(aTree) // 1 + 2 + 3 + 4 + 5 + 6 = 21
+```
+
+<small>Notice that, unlike Lists, the previous `sum` definition spawns two
+recursive calls per subtree</small>
+
+---
+
+### Foldable trees
+
+As with our List example, the previous `sum` function can also be implemented
+in terms of a **fold**:
+
+```scala
+sealed trait Tree[+A] {
+
+  def foldLeft[B](zero: B, operation: (B, A) => B): B
+
+  def foldRight[B](zero: B, operation: (A, B) => B): B
+
+}
+```
+
+```scala
+def sum(tree: Tree[Int]): Int = tree.foldRight(0, _ + _)
+```
+
+---
+
+### Foldable structures
+
+In fact, folding is so fundamental as an operation that most ADTs can benefit
+from it:
+
+```scala
+sealed trait Option[+A] {
+
+  def foldRight[B](zero: => B, operation: (A, B) => B): B =
+    this match {
+      case Some(value) => operation(value, zero)
+      case None        => zero
+    }
+
+  def foldLeft[B](zero: => B, operation: (B, A) => B): B =
+    this.foldRight(zero, (a, b) => operation(b, a))
+
+}
+
+case class Some[A](value: A) extends Option[A]
+case object None extends Option[Nothing]
+```
+
+---
+
+### Foldable structures
+
+In fact, folding is so fundamental as an operation that most ADTs can benefit
+from it:
+
+```scala
+sealed trait Try[+A] {
+
+  def foldRight[B](zero: => B, operation: (A, B) => B): B =
+    this match {
+      case Success(value) => operation(value, zero)
+      case Failure(_)     => zero
+    }
+
+  def foldLeft[B](zero: => B, operation: (B, A) => B): B =
+    this.foldRight(zero, (a, b) => operation(b, a))
+
+}
+
+case class Success[A](value: A)         extends Try[A]
+case class Failure[A](error: Throwable) extends Try[A]
+```
+
+---
+
+### Foldable structures
+
+For non-recursive ADTs, foldLeft and foldRight will have exactly the same
+semantics. Moreover, sometimes a more simple `fold` function is available,
+with a signature-change in the operation function:
+
+```scala
+sealed trait Option[A] {
+
+  def fold[B](zero: => B, operation: A => B): B =
+    this match {
+      case Some(value) => operation(value)
+      case None        => zero
+    }
+
+}
+```
+
+```scala
+val profile: Option[Profile] = profileRepository.find(ByName("Martin Fowler"))
+
+val fowlerSalary = profile.fold(BigDecimal.ZERO, _.salary)
+```
+
+This signature is not possible for recursive ADTs, because we need a way to
+aggregate multiple values into a single value
+
+---
+
+### Monoids
+
+Monoids are algebraic structures composed of an **associative binary
+operation** and **an identity value** over a fixed set (type):
+
+```scala
+trait Monoid[A] {
+
+  def empty: A
+
+  def combine(x: A, y: A): A
+
+}
+```
+
+```scala
+val AdditiveInt = new Monoid[Int] {
+  def empty: Int = 0
+  def combine(x: Int, y: Int): Int = x + y
+}
+
+val MultiplicativeInt = new Monoid[Int] {
+  def empty: Int = 0
+  def combine(x: Int, y: Int): Int = x * y
+}
+
+val ConcatenativeString = new Monoid[String] {
+  def empty: String = ""
+  def combine(x: String, y: String): Int = x + y
+}
+```
+
+---
+
+### Monoids
+
+Monoids in Functional Programming are most than not associated with Foldable
+structures, because they provide the `zero` element and the aggregation
+`operation` that folds require:
+
+```scala
+sealed trait List[+A] {
+
+  def foldRight[B](zero: B, operation: (A, B) => B): B
+
+  def monoidalFold(monoid: Monoid[A]): A = this.foldRight(monoid.empty, monoid.combine)
+
+}
+```
+
+```scala
+val aList = Cons(1, Cons(2, Cons(3, Cons(4, Nil))))
+
+aList.monoidalFold(AdditiveInt) // 10
+```
+
+---
+
+### Monoids and foldMap
+
+The previous `monoidalFold` does not allow to summarize the recursive ADT into a
+value of a different type (if it's a List[Int], the monoidalFold needs to
+return Int)
+
+A more useful operation `foldMap` tends to be defined together in our Foldable
+structures:
+
+```scala
+sealed trait List[+A] {
+
+  def foldRight[B](zero: B, operation: (A, B) => B): B
+
+  def foldMap[B](map: A => B, monoid: Monoid[B]): B =
+    this.foldRight(monoid.empty, (x, y) => monoid.combine(x, map(y)))
+
+  def fold(monoid: Monoid[A]): A =
+    this.foldRight(monoid.empty, monoid.combine)
+
+}
+```
+
+```scala
+Cons(1, Cons(2, Cons(3, Cons(4, Nil)))).foldMap(_.toString, ConcatenativeString) // "1234"
+```
+
+In this way, the summarized value can be of a different type without problem
+
+---
+
+### Monoids and foldMap
+
+The monoidal versions of folds do not apply, as expected, only to recursive
+ADTs:
+
+```scala
+sealed trait Option[+A] {
+
+  def fold[B](zero: => B, operation: A => B): B = ...
+
+  def foldRight[B](zero: B, operation: (A, B) => B): B = ...
+
+  def foldMap[B](map: A => B, monoid: Monoid[B]): B =
+    this.foldRight(monoid.empty, (x, y) => monoid.combine(x, map(y)))
+
+  def fold(monoid: Monoid[A]): A =
+    this.foldRight(monoid.empty, monoid.combine)
+
+}
+```
+
+```scala
+val just: Option[String]  = Some("42")
+val empty: Option[String] = None
+
+just.foldMap(_.toInt, AdditiveInt)  // 42
+empty.foldMap(_.toInt, AdditiveInt) // 0
+```
+
+---
+
+### Abstracting over Foldable
+
+All the functions that we have covered can be written exclusively based on
+`foldRight`, which implies a possible abstraction for all Foldable structures:
+
+```scala
+trait Foldable[F[_]] {
+
+  def foldRight[A, B](structure: F[A])(zero: B, operation: (A, B) => B): B
+
+  def foldLeft[A, B](structure: F[A])(zero: B, operation: (B, A) => B): B =
+   // implementation based on foldRight
+
+  def foldMap[A, B](structure: F[A])(map: A => B, monoid: Monoid[B]): B =
+   // implementation based on foldRight
+
+  def fold[A](structure: F[A])(monoid: Monoid[A]): A =
+   // implementation based on foldRight
+
+  // more derived functions based on the previous ones
+
+}
+```
+
+We'll cover this abstraction more in depth when we discuss ad-hoc polymorphism
+and typeclasses
+
+---
+
+### Foldables in Scala standard library
+
+The Scala standard library has some differences regarding the signatures of
+folds that we have covered. For example, for the standard List datatype:
+
+![](/resources/images/04_transformations.fold_stdlib.png)
+
+The semantics for `foldLeft` and `foldRight` are the expected ones, thankfully
+
+---
+
+### Foldables in Scala standard library
+
+Moreover, the Scala standard library fold for Option looks like this:
+
+![](/resources/images/04_transformations.fold_option_stdlib.png)
+
+While for Either (for example), it looks like this:
+
+![](/resources/images/04_transformations.fold_either_stdlib.png)
+
+The stdlib does neither have a `Foldable` datatype that abstracts over folds,
+nor a `Monoid` type (and no `foldMap` nor monoidal `fold`)
+
+---
+
+### Foldables in Scala standard library
+
+In summary, the Scala standard library:
+
+* Different signatures for `fold`, `foldRight` and `foldLeft` depending on the
+  datatype, but available for most datatypes
+
+* No abstract `Foldable` structure for all foldable datatypes
+
+* No `Monoid` type nor instances for it. Consequently, no `foldMap` nor
+  monoidal `fold`
+
+* Consider using **Cats** or **Scalaz** libraries when doing pure FP
+  programming in Scala, as they provide these features by default
