@@ -1,5 +1,5 @@
 ---
-title: 4. Structure-preserving transformations
+title: 4. Recursive datatypes and transformations
 subtitle: Functional Programming in Scala
 ---
 
@@ -1321,3 +1321,749 @@ In summary, the Scala standard library:
 
 * Consider using **Cats** or **Scalaz** libraries when doing pure FP
   programming in Scala, as they provide these features by default
+
+---
+
+### Structure-preserving transformations
+
+Structure-preserving transformations are those transformations that, after
+being applied, leave the structure of the data-type unchanged.
+
+Take for example:
+
+```scala
+def multiplyAllByTwo(list: List[Int]): List[Double] = {
+  def loop(xs: List[Int], acc: List[Double]): List[Double] =
+    xs match {
+      case Cons(head, tail) => loop(tail, acc.append(head * 2.0))
+      case Nil              => acc
+    }
+    
+  loop(list, Nil)
+}
+
+val input  = Cons(1, Cons(2, Cons(3, Nil)))
+val output = multiplyAllByTwo(input)
+
+output == Cons(2.0, Cons(4.0, Cons(6.0, Nil)))
+```
+
+`multiplyAllByTwo` preserves the original structure of the input list (same
+`Cons` and `Nil` "positions"), and only changes the values of each `head`
+
+---
+
+### Mapping over lists
+
+The most common structure-preserving transformation is, as you may be
+expecting, `map`
+
+Map can be naively-implemented (there are more efficient ways) in our List ADT
+by using foldRight:
+
+```scala
+sealed trait List[+A] {
+
+  def foldRight[B](zero: B, op: (A, B) => B): B
+
+  def map[B](mappingFunction: A => B): List[B] =
+    foldRight(Nil, (head, tail) => Cons(mappingFunction(head), tail))
+
+}
+
+case class Cons[A](head: A, tail: List[A]) extends List[A]
+case object Nil extends List[Nothing]
+```
+
+Map is defined as a higher-order function that receives as argument the
+adaptation to perform over each element of the list
+
+---
+
+### Mapping over lists
+
+With `map` in place we can then abstract over the recursion mechanism that we
+used in our previous `multiplyAllByTwo`
+
+```scala
+val multiplyAllByTwo: List[Int] => List[Double] = xs => xs.map(_ * 2.0) 
+```
+
+And reuse the same pattern for all the structure-preserving transformations
+that we may need:
+
+```scala
+sealed abstract class Country(population: Long)
+
+case object Austria     extends Country(8_822_000)
+case object Germany     extends Country(82_790_000)
+case object Monaco      extends Country(38_695)
+case object Switzerland extends Country(8_570_000)
+
+val AllCountries = Cons(Austria, Cons(Germany, Cons(Monaco, Cons(Switzerland, Nil))))
+
+AllCountries.map(c => c.population) // Cons(8_822_000, Cons(82_790_000, Cons(38_695, Cons(8_570_000, Nil))))
+```
+
+---
+
+### Mapping over trees
+
+Same as with folding, mapping is a useful and sound operation in all recursive
+ADTs
+
+```scala
+sealed trait Tree[+A] {
+
+  def map[B](f: A => B): Tree[B] = 
+    this match {
+      case Node(value, left, right) => Node(f(value), left.map(f), right.map(f))
+      case Empty                    => Empty
+    }
+
+}
+
+case class  Node[+A](value: A, left: Tree[A], right: Tree[A]) extends Tree[A]
+case object Empty extends Tree[Nothing]
+
+def Leaf[A](value: A): Tree[A] = Node(value, Empty, Empty)
+```
+
+```scala
+val aTree: Tree[Int] = Node(4, Node(2, Leaf(1), Empty), Node(5, Leaf(3), Leaf(6)))
+
+aTree.map(_ * 2) // Node(8, Node(4, Leaf(2), Empty), Node(5, Leaf(3), Leaf(12)))
+```
+
+---
+
+### Mapping over non-recursive ADTs
+
+And a useful operation also for non-recursive ADTs like Option:
+
+```scala
+sealed trait Option[+A] {
+
+  def map[B](f: A => B): Option[B] =
+    this match {
+      case Some(a) => Some(f(a))
+      case None    => None
+    }
+
+}
+
+case class Some[A](value: A) extends Option[A]
+case object None extends Option[Nothing]
+```
+
+---
+
+### Functor
+
+The general abstraction over `map` for all mappable structures is called
+`Functor`:
+
+```scala
+trait Functor[Structure[_]] {
+
+  def map[A, B](structure: Structure[A])(mappingFunction: A => B): Structure[B]
+
+}
+```
+
+```scala
+def countriesToPopulations[F[_]](countries: F[Country], functor: Functor[F]): F[Long] =
+  functor.map(countries)(_.population)
+
+countriesToPopulation(Cons(Austria, Cons(Germany, Nil)), ListFunctor) // Cons(8_822_000, Cons(82_790_000, Nil))
+countriesToPopulation(Some(Austria), OptionFunctor)                   // Some(8_822_000)
+```
+
+Functor instances, to be considered mathematically correct, need to obey two laws:
+
+```scala
+Identity: map(functor)(id) == id
+Composition: map(functor)(f andThen g) == map(map(functor)(f))(g)
+```
+
+---
+
+### Derived functions
+
+Given a map function, we can derive some other useful ones from it:
+
+```scala
+trait Functor[F[_]] {
+
+  def map[A, B](fa: [A])(f: A => B): [B]
+
+  def product[A, B](fa: [A])(f: A => B): [(A, B)] =
+    this.map(fa)(a => (a, f(a)))
+
+  def tupleRight[A, B](fa: [A])(right: => B): [(A, B)] =
+    this.map(fa)(a => (a, right))
+
+  def tupleLeft[A, B](fa: [A])(left: => B): [(B, A)] = 
+    this.map(fa)(a => (left, a))
+
+  def unzip[A, B](fab: [(A, B)]): ([A], [B]) =
+    (this.map(fab)(_._1), this.map(fab)(_._2)) 
+
+  def as[A, B](fa: [A])(b: => B): [B] =
+    this.map(fa)(_ => b)
+
+  def void[A](fa: [A]): [Unit] =
+    this.map(fa)(_ => ())
+
+}
+```
+
+---
+
+### Functor namings
+
+The commonly-known `map` function can also be found in different names through
+different environments. Some of the most common ones:
+
+```scala
+trait Functor[F[_]] {
+
+  def map[A, B](fa: [A])(f: A => B): [B]
+
+  final def <$>[A, B](fa: [A])(f: A => B): [B] =
+    this.map(fa)(f)
+
+  final def fmap[A, B](fa: [A])(f: A => B): [B] =
+    this.map(fa)(f)
+
+  final def then[A, B](fa: [A])(f: A => B): [B] =
+    this.map(fa)(f)
+
+}
+
+val xs = Cons(1, Cons(2, Cons(3, Nil)))
+xs <$> (_ * 2) // Cons(2, Cons(4, Cons(6, Nil)))
+```
+
+The key relevant concept here is the function signature. As long as the types
+match, we are referring to the operation of "adapting" while preserving the
+structure, no matter the name that the library, environment or language choses
+
+---
+
+### Functors in Scala standard library
+
+* As usual, the Scala standard library does not define the Functor abstraction
+
+* But, at least, all the `map` functions defined in the standard library follow
+  the same syntax and semantics that we have defined before
+
+  ```scala
+  List(1, 2, 3, 4, 5).map(_ * 2)
+  Some(42).map(_ + 125)
+  ```
+
+* Some of the derived Functor functions are available in different names, and
+  not accross all types. Look at the function signatures to identify their
+  analogous!
+
+* Cats, Scalaz and similar FP libraries do actually define the [Functor
+  abstraction](https://typelevel.org/cats/api/cats/Functor.html), with all the
+  derived functions and with instances for all the basic ADTs in the STD
+  library
+
+---
+
+### Mapping variance
+
+* The `map` signature (resp. Functor) that we have just seen is
+  more formally defined as a **covariant map** (resp. Covariant Functor)
+
+* If we recall from our discussion about subtype variance, we said that Covariant
+  generic types are those that allow the relationship `A >: B` to be lifted
+  into the structure F as `F[A] >: F[B]`
+
+* Analogously, covariant map allows the relationship `A => B` to be lifted into
+  the relationship of structures `F[A] => F[B]`. Meaning that if an adaptation
+  from A to B exists, then an adaptation from F[A] to F[B] also exists
+
+* This simetry allows us to create a "manual" covariant subtyping relationship
+  for invariant types:
+
+  ```scala
+  sealed trait Option[B] {
+    def widen[A >: B]: Option[A] = this.map(identity) 
+  }
+
+  val x: Option[LocalDate] = ???
+  val y: Option[Temporal]  = x.widen[Temporal]
+  val z: Option[Any]       = y.widen[Any]
+  ```
+
+---
+
+### Mapping variance
+
+* As you may have guessed, the dual **contravariant map** (resp. Contravariant
+  Functor) operation also exist, usually called `contramap`
+
+* Contravariant generic types allow the relationship `B >: A` to be lifted
+  backwards into the structure F as `F[A] >: F[B]`
+
+* Contravariant map, similarly, allows the relationship `B => A` to be lifted
+  backwards into the relationship of structures `F[A] => F[B]`
+
+* As with the covariant version, this property allows us to create another
+  "manual" covariant subtyping relationship for invariant types
+
+  ```scala
+  trait Comparable[B] {
+    def narrow[B <: A]: Comparable[A] = this.contramap(identity)
+  }
+
+  val x: Comparable[Any] = ???
+  val y: Comparable[Int] = x.narrow[Any]
+  ```
+
+---
+
+### Comparable
+
+The previous Comparable interface (somewhat similar to Scala's Ordering and
+Java's own Comparable) can have be defined like this:
+
+```scala
+sealed trait Comparison
+case object GreaterThan extends Comparsion
+case object Equal       extends Comparison
+case object LessThan    extends Comparison
+
+trait Comparable[A] {
+  def compare(x: A, y: A): Comparison
+}
+
+val intComparable = new Comparable[Int] {
+
+  def compare(x: Int, y: Int): Comparison =
+    if (x > y) GreaterThan
+    else if (x == y) Equal
+    else LessThan
+
+}
+
+intComparable.compare(1, 2) // LessThan
+intComparable.compare(2, 2) // Equal
+intComparable.compare(2, 1) // GreaterThan
+```
+
+---
+
+### Contravariant maps
+
+These kind of structures like Comparable, that do not "produce" any value of
+its generic type, but just "consume" them can not implement a covariant map in
+any reasonable way:
+
+```scala
+trait Comparable[A] {
+
+  def compare(x: A, y: A): Comparison
+
+  final def map[B](f: A => B): Comparable[B] =
+    new Comparable[B] {
+      // now what??? I have two Bs, but no A to supply to f
+      def compare(x: B, y: B): Comparison =
+        throw Exception
+    }
+
+}
+```
+
+---
+
+### Contravariant maps
+
+But instead, a contravariant map can be easily defined:
+
+```scala
+trait Comparable[A] {
+
+  def compare(x: A, y: A): Comparison
+
+  final def contramap[B](f: B => A): Comparable[B] = {
+    val self = this
+
+    new Comparable[B] {
+      // I know how to compare As, I have a transformation from B to A, and I have two Bs, yay!
+      def compare(x: B, y: B): Comparison =
+        self.compare(f(x), f(y))
+    }
+  }
+
+}
+```
+
+```scala
+val intComparable: Comparable[Int] = new Comparable[Int] { def compare(x: Int, y: Int): Comparison = ... }
+
+val numericStringComparable = intComparable.contramap(str => str.toInt)
+
+numericStringComparable.compare("1", "5") // LessThan
+```
+
+---
+
+### Contravariant maps
+
+* Structures that support contravariant maps are less common than ones that
+  support covariant maps. However, they tend to be quite useful in practice
+
+* Contravariant maps are also an structure-preserving transformation. It's
+  easier to identify that property because almost no recursive structure is
+  contravariant
+
+* Almost all "consumer-like" interfaces like our previous `Comparable` have are
+  capable of supporting contravariant maps. Think about formatters, encoders
+  and similar interfaces
+
+---
+
+### Contravariant Functor
+
+As we have said already before, the abstraction that "governs" all these
+contravariant structures is called "Contravariant Functor" and is usually
+defined as:
+
+```scala
+trait Contravariant[F[_]] {
+
+  def contramap[A, B](fa: F[A])(f: B => A): F[B]
+
+}
+
+val contravariantComparable = new Contravariant[Comparable] {
+  override def contramap[A, B](fa: Comparable[A])(f: B => A): Comparable[B] =
+    new Comparable[B] {
+      def compare(x: B, y: B): Comparison = fa.compare(f(x), f(y))
+    }
+}
+```
+
+Contravariant instances need to follow a couple of laws to be mathematically
+sound:
+
+```scala
+Identity: contramap(fa)(identity) == fa
+Composition: contramap(fa)(f andThen g) == contramap(contramap(fa)(f))(g)
+```
+
+---
+
+### Contravariant in Scala standard library
+
+* The Scala standard library does not contain any `Contravariant` abstraction
+
+* Almost no interface in the standard library defines a contramap-like
+  behaviour, and when it is their it has namings like
+  ["on"](https://www.scala-lang.org/api/current/scala/math/Ordering.html#on[U](f:U=%3ET):scala.math.Ordering[U])
+
+* Cats, Scalaz and similar FP libraries do actually define the [Contravariant
+  abstraction](https://typelevel.org/cats/api/cats/Contravariant.html), with
+  instances for all the basic interfaces in the STD library
+
+---
+
+### Lists of lists
+
+Sometimes, we have the following pattern repeating over our code:
+
+```scala
+sealed abstract class Country(officialLanguages: List[Language])
+
+case object Spain extends Country(List(Spanish, Catalan, Galician, Basque))
+case object UK    extends Country(List(English, Welsh))
+
+def aggregate(pending: List[List[Language]]): List[Language] =
+pending match {
+  case Cons(head, tail) => head.addAll(aggregate(tail))
+  case Nil              => Nil 
+}
+
+val allCountries: List[Country] = List(Spain, UK)
+val langs: List[List[Language]] = allCountries.map(_.officialLanguages)
+
+val allOfficialLanguages: List[Language] = aggregate(langs)
+```
+
+The main concern of the `aggregate` function of the example is converting a
+`List[List[Language]]` to just a `List[Language]` by aggregating all the
+sublists into a single one
+
+---
+
+### List flattening
+
+The concept of aggregating a List of Lists into a single un-nested List is
+known as "list flattening" and can be generified to the following function:
+
+```scala
+// beware non-optimized naive implementations, they can be easily made tail-recursive
+
+sealed trait List[+A] {
+
+  def addAll(xs: List[A]): List[A] =
+    this match {
+      case Cons(head, tail) => Cons(head, tail.addAll(xs))
+      case Nil              => xs
+    }
+
+}
+
+def flatten[A](xss: List[List[A]]): List[A] =
+  xss match {
+    case Cons(head, tail) => head.addAll(flatten(tail))
+    case Nil              => Nil
+  }
+
+val listOfListOfLanguages: List[List[Language]] = List(Spain, UK).map(_officialLanguages)
+
+flatten(listOfListOfLanguages) // List[Language](Spanish, Catalan, Galician, Basque, English, Welsh)
+```
+
+---
+
+### Flattening
+
+As you may expect too, flattening is not a concept unique to Lists:
+
+```scala
+def flattenOption[A](opts: Option[Option[A]]): Option[A] =
+  opts match {
+    case Some(innerOption) => innerOption
+    case None              => None
+  }
+
+def flattenTry[A](tries: Try[Try[A]]): Try[A] =
+  tries match {
+    case Success(innerTry) => innerTry
+    case Failure(error)   => Failure(error)
+  }
+```
+
+---
+
+### Abstracting over flatten
+
+We may think that there is another governing abstraction over all flatten-able
+structures:
+
+```scala
+trait Flattenable[F[_]] {
+
+  def flatten[A](fa: F[F[A]]): F[A]
+
+}
+
+val flattenableList: Flattenable[Option] = new Flattenable[Option] {
+  override def flatten[A](fa: Option[Option[A]]): Option[A] =
+    fa match {
+      case Some(inner) => inner
+      case None        => None
+    }
+}
+```
+
+We will see later, hoewever, a better abstraction than this one, that happens
+to be mathematically sound. Flattenable is just an "invented" abstraction that
+no FP library contains.
+
+---
+
+### Flatten in the Scala standard library
+
+* The Scala standard library does not define any `Flattenable` abstraction, nor
+  any FP-centric library like Cats, Scalaz et al.
+
+* But `flatten` as an [individual
+  operation](https://www.scala-lang.org/api/current/scala/collection/immutable/List.html#flatten[B](implicittoIterableOnce:A=%3Escala.collection.IterableOnce[B]):CC[B])
+  appears in a lot of structures in the STD lib, encoded with an implicit type
+  constraint:
+
+  ```scala
+  sealed trait List[A] {
+    // the constraint will be similar to this, proving that A is a List of something else
+    def flatten[B](implicit innerValueIsAList: A =:= List[B]): List[B] = ???
+  }
+
+  val xs = List(List(1, 2, 3), List(4, 5))
+  xs.flatten // List(1, 2, 3, 4, 5)
+
+  val ys = List(1, 2, 3)
+  ys.flatten // DOES NOT COMPILE!
+  ```
+
+---
+
+### Mapping, and then flattening Lists
+
+Another common pattern that we have already seen before, is the concept of
+first applying a map, and then flattening the result. This operation can be
+reduced to a single one called `flatMap`:
+
+```scala
+sealed trait List[+A] {
+
+  def map[B](f: A => B): List[B]
+
+  def flatten[B](implicit evidence: A =:= List[B]): List[B]
+
+  def flatMap[B](f: A => List[B]): List[B] =
+    this.map(f).flatten
+
+}
+```
+
+```scala
+List(Spain, UK).flatMap(_.officialLanguages) // List[Language](Spanish, Catalan, Galician, Basque, English, Welsh)
+```
+
+---
+
+### FlatMapping over other ADTs
+
+As always, flat-mapping is not only limited to Lists nor only to recursive ADTs:
+
+```scala
+sealed trait Option[+A] {
+
+  def map[B](f: A => B): Option[B]
+
+  def flatten[B](implicit evidence: A =:= Option[B]): Option[B]
+
+  def flatMap[B](f: A => Option[B]): Option[B] =
+    this.map(f).flatten
+
+}
+```
+
+```scala
+Some(42).flatMap(x => Some(x * 3)) // Some(126)
+None.flatMap(_ => Some(3))         // None
+```
+
+---
+
+### Derived and fundamental operations
+
+We have seen that `flatMap` can be implemented in terms of `map` and `flatten`,
+but the other way around is also possible:
+
+```scala
+sealed trait List[A] {
+
+  def flatMap[B](f: A => List[B]): List[B]
+
+  def map[B](f: A => B): List[B] =
+    this.flatMap(a => Cons(f(a), Nil))
+
+  def flatten[B](implicit evidence: A =:= List[B]): List[B] =
+    this.flatMap(identity)
+
+}
+```
+
+With this encoding, we only need a way to abstract over the data constructor
+`Cons`, and we will be able to provide `map` and `flatten` automatically for
+all structures that implement `flatMap`
+
+This abstraction of the data constructor with one value is commonly known as
+`pure`, as it creates a new ADT from a pure value
+
+---
+
+### Abstracting over flatMap
+
+The abstraction, given both a `pure` and a `flatMap` fundamental operations
+looks like this:
+
+```scala
+trait FlatMappable[F[_]] {
+
+  def pure[A](a: => A): F[A]
+
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+  def map[A, B](fa: F[A])(f: A => B): F[B] =
+    this.flatMap(a => pure(f(a)))
+
+  def flatten[A](ffa: F[F[A]]): F[A] =
+    this.flatMap(identity)
+
+}
+
+val flatMappableOption = new FlatMappable[Option] {
+
+  override def pure[A](a: => A): Option[A] = Some(a)
+
+  override def flatMap[A, B](optA: Option[A])(f: A => Option[B]): Option[B] =
+    optA match {
+      case Some(value) => f(value)
+      case None        => None
+    }
+
+}
+```
+
+---
+
+### FlatMappable <: Functor
+
+The fact that we can define `map` in terms of flatMap allows us to define an
+"inheritance" (it does not need to be inheritance, but it is the natural way to
+do it in a subtyping language like Scala) like the following:
+
+```scala
+trait FlatMappable[F[_]] extends Functor[F] {
+
+  def pure[A](a: => A): F[A]
+
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+  def flatten[A](ffa: F[F[A]]): F[A] =
+    this.flatMap(identity)
+
+  override def map[A, B](fa: F[A])(f: A => B): F[B] =
+    this.flatMap(a => pure(f(a)))
+
+}
+```
+
+This way, defining a FlatMappable instance also provides us with a Functor
+instance and all its functions
+
+---
+
+### Monad
+
+The term `FlatMappable` is, of course, not the formal name, nor the widespread
+one. The FP term that we use to refer to this abstract structure is Monad:
+
+```scala
+trait Monad[F[_]] extends Functor[F] {
+
+  def pure[A](a: => A): F[A]
+
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+}
+```
+
+All Monad instances, to be mathematically correct, need to abide to three laws:
+
+```scala
+Left identity: flatMap(pure(a))(f) == f(a)
+Right identity: flatMap(fa)(pure) == fa
+Associativity: flatMap(fa)(a => flatMap(f(a))(g)) == flatMap(flatMap(fa)(f))(g)
+```
+
+---
